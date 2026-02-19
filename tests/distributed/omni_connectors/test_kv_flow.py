@@ -105,6 +105,42 @@ def test_manager_extraction(kv_config, mock_connector, common_constants):
     assert data["layer_blocks"]["key_cache"][0].shape == expected_shape
 
 
+def test_manager_extraction_tuple_layout(kv_config, mock_connector, common_constants):
+    """Test extraction with tuple layout."""
+    num_layers = common_constants["num_layers"]
+    block_size = common_constants["block_size"]
+    num_heads = common_constants["num_heads"]
+    head_dim = common_constants["head_dim"]
+    seq_len = common_constants["seq_len"]
+    req_id = common_constants["req_id"]
+
+    num_blocks = 10
+    kv_caches = []
+    for _ in range(num_layers):
+        k_cache = torch.randn(num_blocks, block_size, num_heads, head_dim)
+        v_cache = torch.randn(num_blocks, block_size, num_heads, head_dim)
+        kv_caches.append((k_cache, v_cache))
+
+    block_ids = [1, 3, 5]
+    finished_reqs = {req_id: {"block_ids": block_ids, "seq_len": seq_len}}
+
+    manager = OmniKVTransferManager(kv_config)
+    manager._connector = mock_connector
+
+    processed = manager.handle_finished_requests_kv_transfer(finished_reqs, kv_caches, block_size, "float32")
+    assert req_id in processed
+
+    full_request_id = f"omni_stage1_to_stage2_kv_cache_{req_id}"
+    expected_key = f"stage1->stage2:{full_request_id}"
+    assert expected_key in mock_connector.store
+
+    data = mock_connector.store[expected_key]
+    expected_shape = (seq_len, num_heads, head_dim)
+    for idx in range(len(kv_caches)):
+        assert data["layer_blocks"]["key_cache"][idx].shape == expected_shape
+        assert data["layer_blocks"]["value_cache"][idx].shape == expected_shape
+
+
 def test_manager_reception(kv_config, mock_connector, common_constants):
     """Test reception and injection logic in OmniKVTransferManager."""
     num_layers = common_constants["num_layers"]
