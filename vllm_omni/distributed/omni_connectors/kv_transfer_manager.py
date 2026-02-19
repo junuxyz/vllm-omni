@@ -250,9 +250,8 @@ class OmniKVTransferManager:
 
             if key_blocks.shape[0] != value_blocks.shape[0]:
                 logger.warning(
-                    f"KV block count mismatch at layer {layer_idx} for {req_id}: "
-                    f"key={key_blocks.shape[0]} value={value_blocks.shape[0]}. "
-                    "Using the smaller count."
+                    f"Layer {layer_idx} for request {req_id} has mismatched KV block counts: "
+                    f"key={key_blocks.shape[0]}, value={value_blocks.shape[0]}; using shared range"
                 )
 
             # Validate block IDs - shape: [num_blocks, block_size, n_heads, head_dim]
@@ -312,29 +311,29 @@ class OmniKVTransferManager:
         if isinstance(layer_kv, torch.Tensor):
             if layer_kv.ndim < 3 or layer_kv.shape[0] != 2:
                 logger.warning(
-                    f"Skip KV layer {layer_idx} for {req_id}: expected stacked KV "
-                    f"[2, blocks, block_size, ...], got {tuple(layer_kv.shape)}"
+                    f"Layer {layer_idx} for request {req_id} has invalid stacked KV shape: "
+                    f"expected [2, blocks, block_size, ...], got {tuple(layer_kv.shape)}"
                 )
                 return None
             key_blocks = layer_kv[0]
             value_blocks = layer_kv[1]
         elif isinstance(layer_kv, (tuple, list)):
             if len(layer_kv) != 2:
-                logger.warning(f"Skip KV layer {layer_idx} for {req_id}: KV pair length must be 2, got {len(layer_kv)}")
+                logger.warning(
+                    f"Layer {layer_idx} for request {req_id} has KV pair length {len(layer_kv)} (expected 2)"
+                )
                 return None
             key_blocks, value_blocks = layer_kv
             if not isinstance(key_blocks, torch.Tensor) or not isinstance(value_blocks, torch.Tensor):
-                logger.warning(f"Skip KV layer {layer_idx} for {req_id}: KV pair entries must be tensors")
+                logger.warning(f"Layer {layer_idx} for request {req_id} has non-tensor KV pair entries")
                 return None
         else:
-            logger.warning(
-                f"Skip KV layer {layer_idx} for {req_id}: unsupported layer KV type {type(layer_kv).__name__}"
-            )
+            logger.warning(f"Layer {layer_idx} for request {req_id} has unsupported KV type {type(layer_kv).__name__}")
             return None
         # ensure key/value blocks are at least 2D for block indexing
         if key_blocks.ndim < 2 or value_blocks.ndim < 2:
             logger.warning(
-                f"Skip KV layer {layer_idx} for {req_id}: KV pair entries must be block tensors, "
+                f"Layer {layer_idx} for request {req_id} has invalid KV block shape: "
                 f"got key={tuple(key_blocks.shape)} value={tuple(value_blocks.shape)}"
             )
             return None
