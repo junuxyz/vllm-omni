@@ -248,8 +248,15 @@ class OmniKVTransferManager:
                 continue
             key_blocks, value_blocks = kv_pair
 
+            if key_blocks.shape[0] != value_blocks.shape[0]:
+                logger.warning(
+                    f"KV block count mismatch at layer {layer_idx} for {req_id}: "
+                    f"key={key_blocks.shape[0]} value={value_blocks.shape[0]}. "
+                    "Using the smaller count."
+                )
+
             # Validate block IDs - shape: [num_blocks, block_size, n_heads, head_dim]
-            max_block = key_blocks.shape[0] - 1
+            max_block = min(key_blocks.shape[0], value_blocks.shape[0]) - 1
             valid_ids = [bid for bid in block_ids if 0 <= bid <= max_block]
             if not valid_ids:
                 continue

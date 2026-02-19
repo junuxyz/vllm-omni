@@ -141,6 +141,35 @@ def test_manager_extraction_tuple_layout(kv_config, mock_connector, common_const
         assert data["layer_blocks"]["value_cache"][idx].shape == expected_shape
 
 
+def test_manager_extraction_mismatched_kv_block_counts(kv_config, mock_connector, common_constants):
+    """Mismatched key/value block counts should not crash extraction."""
+    block_size = common_constants["block_size"]
+    num_heads = common_constants["num_heads"]
+    head_dim = common_constants["head_dim"]
+    req_id = common_constants["req_id"]
+
+    key_blocks = torch.randn(3, block_size, num_heads, head_dim)
+    value_blocks = torch.randn(2, block_size, num_heads, head_dim)
+    kv_caches = [(key_blocks, value_blocks)]
+
+    finished_reqs = {req_id: {"block_ids": [0, 1, 2], "seq_len": 32}}
+
+    manager = OmniKVTransferManager(kv_config)
+    manager._connector = mock_connector
+
+    processed = manager.handle_finished_requests_kv_transfer(finished_reqs, kv_caches, block_size, "float32")
+    assert req_id in processed
+
+    full_request_id = f"omni_stage1_to_stage2_kv_cache_{req_id}"
+    expected_key = f"stage1->stage2:{full_request_id}"
+    assert expected_key in mock_connector.store
+
+    data = mock_connector.store[expected_key]
+    expected_shape = (2 * block_size, num_heads, head_dim)
+    assert data["layer_blocks"]["key_cache"][0].shape == expected_shape
+    assert data["layer_blocks"]["value_cache"][0].shape == expected_shape
+
+
 def test_manager_reception(kv_config, mock_connector, common_constants):
     """Test reception and injection logic in OmniKVTransferManager."""
     num_layers = common_constants["num_layers"]
