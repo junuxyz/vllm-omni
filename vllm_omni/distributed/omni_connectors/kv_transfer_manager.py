@@ -320,9 +320,7 @@ class OmniKVTransferManager:
             value_blocks = layer_kv[1]
         elif isinstance(layer_kv, (tuple, list)):
             if len(layer_kv) != 2:
-                logger.warning(
-                    f"Skip KV layer {layer_idx} for {req_id}: KV pair length must be 2, got {len(layer_kv)}"
-                )
+                logger.warning(f"Skip KV layer {layer_idx} for {req_id}: KV pair length must be 2, got {len(layer_kv)}")
                 return None
             key_blocks, value_blocks = layer_kv
             if not isinstance(key_blocks, torch.Tensor) or not isinstance(value_blocks, torch.Tensor):
@@ -330,15 +328,11 @@ class OmniKVTransferManager:
                 return None
         else:
             logger.warning(
-                f"Skip KV layer {layer_idx} for {req_id}: unsupported layer KV type "
-                f"{type(layer_kv).__name__}"
+                f"Skip KV layer {layer_idx} for {req_id}: unsupported layer KV type {type(layer_kv).__name__}"
             )
             return None
         # ensure key/value blocks are at least 2D for block indexing
-        if (
-            key_blocks.ndim < 2
-            or value_blocks.ndim < 2
-        ):
+        if key_blocks.ndim < 2 or value_blocks.ndim < 2:
             logger.warning(
                 f"Skip KV layer {layer_idx} for {req_id}: KV pair entries must be block tensors, "
                 f"got key={tuple(key_blocks.shape)} value={tuple(value_blocks.shape)}"
