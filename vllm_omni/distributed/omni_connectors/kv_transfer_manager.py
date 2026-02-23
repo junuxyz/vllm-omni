@@ -5,7 +5,7 @@
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, TypeAlias
 
 import torch
 from vllm.logger import init_logger
@@ -15,7 +15,7 @@ from .utils.config import ConnectorSpec
 
 logger = init_logger(__name__)
 
-LayerKV = torch.Tensor | tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]
+LayerKV: TypeAlias = torch.Tensor | tuple[torch.Tensor, torch.Tensor]
 
 
 @dataclass
@@ -171,7 +171,7 @@ class OmniKVTransferManager:
 
         Args:
             finished_reqs: Dict mapping request_id to {block_ids, seq_len}
-            kv_caches: List of KV cache (tensor or tuple/list) per layer
+            kv_caches: List of KV cache (tensor or tuple) per layer
             block_size: Size of each cache block
             cache_dtype: Data type of the cache
             request_id_resolver: Optional function to resolve global request ID
@@ -231,7 +231,7 @@ class OmniKVTransferManager:
             req_id: Request identifier
             block_ids: List of block IDs to extract
             seq_len: Sequence length
-            kv_caches: List of KV cache (tensor or tuple/list) per layer
+            kv_caches: List of KV cache (tensor or tuple) per layer
             block_size: Size of each cache block
             cache_dtype: Data type of the cache
 
@@ -264,8 +264,8 @@ class OmniKVTransferManager:
             # -> [seq_len, n_heads, head_dim]
             selected_k = key_blocks[valid_ids]
             selected_v = value_blocks[valid_ids]
-            flat_k = selected_k.reshape(selected_k.shape[0] * selected_k.shape[1], *selected_k.shape[2:])
-            flat_v = selected_v.reshape(selected_v.shape[0] * selected_v.shape[1], *selected_v.shape[2:])
+            flat_k = selected_k.flatten(0, 1)
+            flat_v = selected_v.flatten(0, 1)
             if seq_len < flat_k.shape[0]:
                 flat_k = flat_k[:seq_len]
                 flat_v = flat_v[:seq_len]
@@ -298,16 +298,13 @@ class OmniKVTransferManager:
         """Normalize one layer KV cache to a `(key_blocks, value_blocks)` tuple.
 
         Args:
-            layer_kv: The raw KV cache (tensor or tuple/list) for the layer
+            layer_kv: The raw KV cache (tensor or tuple) for the layer
             req_id: Request ID for logging
             layer_idx: Layer index for logging
 
         Returns:
             Tuple of (key_blocks, value_blocks) if valid, None otherwise
         """
-        key_blocks: torch.Tensor
-        value_blocks: torch.Tensor
-
         if isinstance(layer_kv, torch.Tensor):
             if layer_kv.ndim < 3 or layer_kv.shape[0] != 2:
                 logger.warning(
@@ -317,7 +314,7 @@ class OmniKVTransferManager:
                 return None
             key_blocks = layer_kv[0]
             value_blocks = layer_kv[1]
-        elif isinstance(layer_kv, (tuple, list)):
+        elif isinstance(layer_kv, tuple):
             if len(layer_kv) != 2:
                 logger.warning(
                     f"Layer {layer_idx} for request {req_id} has KV pair length {len(layer_kv)} (expected 2)"
