@@ -5,7 +5,7 @@
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, TypeAlias
+from typing import Any
 
 import torch
 from vllm.logger import init_logger
@@ -15,7 +15,7 @@ from .utils.config import ConnectorSpec
 
 logger = init_logger(__name__)
 
-LayerKV: TypeAlias = torch.Tensor | tuple[torch.Tensor, torch.Tensor]
+LayerKV = torch.Tensor | tuple[torch.Tensor, torch.Tensor]
 
 
 @dataclass
@@ -234,6 +234,9 @@ class OmniKVTransferManager:
             kv_caches: List of KV cache (tensor or tuple) per layer
             block_size: Size of each cache block
             cache_dtype: Data type of the cache
+
+        Note: If key/value block counts differ, extraction uses only the overlapping
+        block range. Extra key/value blocks are ignored, so returned KV may be partial.
 
         Returns:
             KVCacheTransferData if extraction successful, None otherwise

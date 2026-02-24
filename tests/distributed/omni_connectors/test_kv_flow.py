@@ -170,6 +170,33 @@ def test_manager_extraction_mismatched_kv_block_counts(kv_config, mock_connector
     assert data["layer_blocks"]["value_cache"][0].shape == expected_shape
 
 
+@pytest.mark.parametrize(
+    "invalid_case",
+    ["invalid_stacked_shape", "invalid_tuple_length", "non_tensor_entries"],
+)
+def test_normalize_layer_kv_rejects_invalid_inputs(kv_config, common_constants, invalid_case):
+    """_normalize_layer_kv should reject malformed KV representations."""
+    block_size = common_constants["block_size"]
+    num_heads = common_constants["num_heads"]
+    head_dim = common_constants["head_dim"]
+    req_id = common_constants["req_id"]
+
+    if invalid_case == "invalid_stacked_shape":
+        layer_kv = torch.randn(3, block_size, num_heads, head_dim)
+    elif invalid_case == "invalid_tuple_length":
+        layer_kv = (
+            torch.randn(2, block_size, num_heads, head_dim),
+            torch.randn(2, block_size, num_heads, head_dim),
+            torch.randn(2, block_size, num_heads, head_dim),
+        )
+    else:
+        layer_kv = (torch.randn(2, block_size, num_heads, head_dim), "not-a-tensor")
+
+    manager = OmniKVTransferManager(kv_config)
+    normalized = manager._normalize_layer_kv(layer_kv, req_id=req_id, layer_idx=0)
+    assert normalized is None
+
+
 def test_manager_reception(kv_config, mock_connector, common_constants):
     """Test reception and injection logic in OmniKVTransferManager."""
     num_layers = common_constants["num_layers"]
